@@ -67,14 +67,153 @@ def generate_playfair_matrix(key):
     
     return [matrix[i:i+5] for i in range(0, 25, 5)]
 
+def prepare_playfair_text(text):
+    text = text.upper().replace("J", 'I')
+    cleaned_text = [c for c in text if c in string.ascii_uppercase]
+    
+    i=0
+    prepared_text = ""
+    while i < len(cleaned_text):
+        char1 = cleaned_text[i]
+        if i + 1 < len(cleaned_text):
+            char2 = cleaned_text[i + 1]
+            if char1 == char2:
+                prepared_text += char1 + 'X'
+                i += 1
+            else:
+                prepared_text += char1 + char2
+                i += 2
+        else:
+            prepared_text += char1 + 'X'
+            i += 1
+    return prepared_text
+
+def find_position(matrix, char):
+    for i in range(5):
+        for j in range(5):
+            if matrix[i][j]== char:
+                return i, j
+    return -1, -1
+
+def playfair_cipher(text, key, mode='encrypt'):
+    if not text or not key:
+        return "Teks dan Kunci tidak boleh kosong!"
+    
+    matrix = generate_playfair_matrix(key)
+    
+    if mode == 'encrypt':
+        text = prepare_playfair_text(text)
+    else:
+        text = text.upper().replace("J", 'I')
+        text = "".join([c for c in text if c in string.ascii_uppercase])
+        if len(text) % 2 != 0:
+            text += 'X'
+        
+    result = ""
+    for i in range(0, len(text), 2):
+        char1 = text[i]
+        char2 = text[i + 1]
+        row1, col1 = find_position(matrix, char1)
+        row2, col2 = find_position(matrix, char2)
+        
+        if row1 == row2:
+            if mode == 'encrypt':
+                result += matrix[row1][(col1 + 1) % 5]
+                result += matrix[row2][(col2 + 1) % 5]
+            else:
+                result += matrix[row1][(col1 - 1) % 5]
+                result += matrix[row2][(col2 - 1) % 5]
+        elif col1 == col2:
+            if mode == 'encrypt':
+                result += matrix[(row1 + 1) % 5][col1]
+                result += matrix[(row2 + 1) % 5][col2]
+            else:
+                result += matrix[(row1 - 1) % 5][col1]
+                result += matrix[(row2 - 1) % 5][col2]
+        else:
+            result += matrix[row1][col2]
+            result += matrix[row2][col1]
+    return result
 
 # hill cipher
+def mod_inverse_matrix(matrix, modulus):
+    det = int(np.round(np.linalg.det(matrix)))
+    
+    try:
+        det.inv = pow(det % modulus, -1, modulus)
+    except ValueError:
+        return None
+    
+    adj = np.array([[matrix[1][1], -matrix[0][1]], [-matrix[1][0], matrix[0][0]]])
+    
+    matrix_mod_inv = (det.inv * adj) % modulus
+    return np.round(matrix_mod_inv).astype(int)
+
+def hill_cipher(text, key_matrix, mode='encrypt'):
+    text = "".join([c for c in text.upper() if c in string.ascii_uppercase])
+    n = 2
+    
+    if len(text) % n != 0:
+        text += 'X'
+    
+    if mode == 'decrypt':
+        key_matrix = mod_inverse_matrix(key_matrix, 26)
+        if key_matrix is None:
+            return "Kunci tidak valid untuk dekripsi!"
+    
+    result = ""
+    for i in range(0, len(text), n):
+        block = [ord(c) - 65 for c in text[i:i+n]]
+        block_vector = np.array(block)
+        
+        res_vector = np.dot(key_matrix, block_vector) % 26
+        
+        for val in res_vector:
+            result += chr(int(val) + 65)
+    return result
+
 # enigma cipher
+class EnigmaMachine:
+    def __init__(self, p1, p2, p3):
+        self.r1 = "EKMFLGDQVZNTOWYHXUSPAIBRCJ"
+        self.r2 = "AJDKSIRUXBLHWTMCQGZNPYFVOE"
+        self.r3 = "BDFHJLCPRTXVZNYEIWGAKMUSQO"
+        self.reflector = "YRUHQSLDPXNGOKMIEBFZCWVJAT"
+        self.pos = [p1, p2, p3]
+        self.alphabet = string.ascii_uppercase
+        
+    def step_rotors(self):
+        self.pos[0] = (self.pos[0] + 1) % 26
+        if self.pos[0] == 0:
+            self.pos[1] = (self.pos[1] + 1) % 26
+            if self.pos[1] == 0:
+                self.pos[2] = (self.pos[2] + 1) % 26
+    
+    def process_text(self, text):
+        result = ""
+        text = "".join([c for c in text.upper() if c in self.alphabet])
+        
+        for char in text:
+            self.step_rotors()
+            idx = self.alphabet.index(char)
+            idx = self.alphabet.index(self.r1[(idx + self.pos[0]) % 26])
+            idx = self.alphabet.index(self.r2[(idx + self.pos[1]) % 26])
+            idx = self.alphabet.index(self.r3[(idx + self.pos[2]) % 26])
+            idx = self.alphabet.index(self.reflector[idx])
+            idx = (self.r3.index(self.alphabet[idx]) - self.pos[2]) % 26
+            idx = (self.r2.index(self.alphabet[idx]) - self.pos[1]) % 26
+            idx = (self.r1.index(self.alphabet[idx]) - self.pos[0]) % 26
+            result += self.alphabet[idx]
+        return result
+
+def enigma_cipher(text, p1, p2, p3):
+    enigma = EnigmaMachine(p1, p2, p3)
+    return enigma.process_text(text)
 
 st.set_page_config(page_title="Kalkulator Kriptografi", layout="centered")
 
 st.title("🔐 Kalkulator Enkripsi & Dekripsi")
-st.markdown("Dibangun menggunakan **Python & Streamlit**")
+st.markdown("Created by Arrasyid Atma Wijaya - 21120123140114")
 
 cipher_choice = st.sidebar.selectbox(
     "Pilih Algoritma Cipher:",
@@ -120,7 +259,62 @@ elif cipher_choice == "Affine Cipher":
                 st.code(output)
 
 elif cipher_choice in ["Playfair Cipher"]:
-    st.warning("Fungsi Playfair Cipher belum diimplementasikan.")
+    st.markdown("💡 **Info Playfair:** Huruf **J** dilebur menjadi **I**. Teks akan diproses berpasangan (digraph). Huruf kembar akan dipisahkan dengan huruf **X**.")
+    key_input = st.text_input("Masukkan Kunci (Huruf):", value="KUNCI")
+    
+    if st.button("Proses"):
+        if text_input and key_input:
+            if mode == "Enkripsi":
+                output = playfair_cipher(text_input, key_input, 'encrypt')
+            else:
+                output = playfair_cipher(text_input, key_input, 'decrypt')
+            st.write("Matriks Kunci 5x5:")
+            matrix = generate_playfair_matrix(key_input)
+            matrix_display = "\n".join([" ".join(row) for row in matrix])
+            st.text(matrix_display)
+            st.success("Hasil:")
+            st.code(output)
+        else:
+            st.warning("Teks dan Kunci tidak boleh kosong!")
 
-elif cipher_choice in ["Playfair Cipher", "Hill Cipher", "Enigma Cipher"]:
-    st.info(f"Antarmuka untuk {cipher_choice} sudah siap. Kamu bisa menambahkan fungsi logika matematikanya di bagian kode program!")
+elif cipher_choice in ["Hill Cipher"]:
+    st.markdown("💡 **Info Hill Cipher:** Kunci berupa matriks 2x2. Pastikan determinan matriks koprima dengan 26 untuk dekripsi.")
+    st.write("Masukkan elemen matriks kunci (2x2):")
+    col1, col2 = st.columns(2)
+    with col1:
+        k00 = st.number_input("baris 1, kolom 1", value=3)
+        k10 = st.number_input("baris 2, kolom 1", value=2)
+    with col2:
+        k01 = st.number_input("baris 1, kolom 2", value=3)
+        k11 = st.number_input("baris 2, kolom 2", value=5)
+    
+    key_matrix = np.array([[k00, k01], [k10, k11]])
+    
+    if st.button("Proses"):
+        if text_input:
+            if mode == "Enkripsi":
+                output = hill_cipher(text_input, key_matrix, 'encrypt')
+            else:
+                output = hill_cipher(text_input, key_matrix, 'decrypt')
+            
+            if "Kunci tidak valid" in output:
+                st.error(output)
+            else:
+                st.success("Hasil:")
+                st.code(output)
+    
+elif cipher_choice in ["Enigma Cipher"]:
+    st.markdown("💡 **Info Enigma Cipher:** Masukkan posisi awal rotor (0-25) untuk masing-masing rotor (R1, R2, R3).")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        r1 = st.number_input("Posisi awal Rotor R1:", min_value=0, max_value=25, value=0)
+    with col2:
+        r2 = st.number_input("Posisi awal Rotor R2:", min_value=0, max_value=25, value=0)
+    with col3:
+        r3 = st.number_input("Posisi awal Rotor R3:", min_value=0, max_value=25, value=0)
+    
+    if st.button("Proses"):
+        if text_input:
+            output = enigma_cipher(text_input, r1, r2, r3)
+            st.success("Hasil:")
+            st.code(output)
