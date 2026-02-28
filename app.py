@@ -212,6 +212,9 @@ def enigma_cipher(text, p1, p2, p3):
 
 st.set_page_config(page_title="Kalkulator Kriptografi", layout="centered")
 
+if 'history' not in st.session_state:
+    st.session_state.history = []
+
 st.title("🔐 Kalkulator Enkripsi & Dekripsi")
 st.markdown("Created by Arrasyid Atma Wijaya - 21120123140114")
 
@@ -235,6 +238,13 @@ if cipher_choice == "Vigenere Cipher":
                 output = vigenere_cipher(text_input, key_input, 'decrypt')
             st.success("Hasil:")
             st.code(output)
+            
+            st.session_state.history.append({
+                'cipher': "Vigenere Cipher",
+                'mode': mode,
+                'input': text_input,
+                'output': output
+            })
         else:
             st.warning("Teks dan Kunci tidak boleh kosong!")
 
@@ -257,6 +267,13 @@ elif cipher_choice == "Affine Cipher":
                     output = affine_cipher(text_input, a_input, b_input, 'decrypt')
                 st.success("Hasil:")
                 st.code(output)
+                
+                st.session_state.history.append({
+                'cipher': "Affine Cipher",
+                'mode': mode,
+                'input': text_input,
+                'output': output
+            })
 
 elif cipher_choice in ["Playfair Cipher"]:
     st.markdown("💡 **Info Playfair:** Huruf **J** dilebur menjadi **I**. Teks akan diproses berpasangan (digraph). Huruf kembar akan dipisahkan dengan huruf **X**.")
@@ -274,6 +291,12 @@ elif cipher_choice in ["Playfair Cipher"]:
             st.text(matrix_display)
             st.success("Hasil:")
             st.code(output)
+            st.session_state.history.append({
+                'cipher': "Playfair Cipher",
+                'mode': mode,
+                'input': text_input,
+                'output': output
+            })
         else:
             st.warning("Teks dan Kunci tidak boleh kosong!")
 
@@ -302,6 +325,12 @@ elif cipher_choice in ["Hill Cipher"]:
             else:
                 st.success("Hasil:")
                 st.code(output)
+                st.session_state.history.append({
+                'cipher': "Hill Cipher",
+                'mode': mode,
+                'input': text_input,
+                'output': output
+            })
     
 elif cipher_choice in ["Enigma Cipher"]:
     st.markdown("💡 **Info Enigma Cipher:** Masukkan posisi awal rotor (0-25) untuk masing-masing rotor (R1, R2, R3).")
@@ -318,3 +347,24 @@ elif cipher_choice in ["Enigma Cipher"]:
             output = enigma_cipher(text_input, r1, r2, r3)
             st.success("Hasil:")
             st.code(output)
+            st.session_state.history.append({
+                'cipher': "Enigma Cipher",
+                'mode': mode,
+                'input': text_input,
+                'output': output
+            })
+            
+st.markdown("---")
+st.sidebar.subheader("Riwayat Proses")
+
+if st.sidebar.button("Hapus Riwayat"):
+    st.session_state.history = []
+    st.rerun()
+
+if not st.session_state.history:
+    st.sidebar.info("Belum ada riwayat proses.")
+else:
+    for idx, item in enumerate(st.session_state.history):
+        with st.sidebar.expander(f"{item['cipher']} - {item['mode']}"):
+            st.markdown(f"**Input:**\n {item['input']}")
+            st.markdown(f"**Output:**\n {item['output']}")
