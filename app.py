@@ -137,17 +137,14 @@ def playfair_cipher(text, key, mode='encrypt'):
 
 # hill cipher
 def mod_inverse_matrix(matrix, modulus):
-    det = int(np.round(np.linalg.det(matrix)))
-    
+    det = int(round(np.linalg.det(matrix)))
     try:
-        det.inv = pow(det % modulus, -1, modulus)
+        det_inv = pow(det % modulus, -1, modulus)
     except ValueError:
         return None
-    
     adj = np.array([[matrix[1][1], -matrix[0][1]], [-matrix[1][0], matrix[0][0]]])
-    
-    matrix_mod_inv = (det.inv * adj) % modulus
-    return np.round(matrix_mod_inv).astype(int)
+    matrix_mod_inv = (det_inv * adj) % modulus
+    return matrix_mod_inv.astype(int)
 
 def hill_cipher(text, key_matrix, mode='encrypt'):
     text = "".join([c for c in text.upper() if c in string.ascii_uppercase])
@@ -165,49 +162,53 @@ def hill_cipher(text, key_matrix, mode='encrypt'):
     for i in range(0, len(text), n):
         block = [ord(c) - 65 for c in text[i:i+n]]
         block_vector = np.array(block)
-        
         res_vector = np.dot(key_matrix, block_vector) % 26
-        
         for val in res_vector:
             result += chr(int(val) + 65)
     return result
 
-# enigma cipher
+# enigma cipher with 8 rotors
 class EnigmaMachine:
-    def __init__(self, p1, p2, p3):
-        self.r1 = "EKMFLGDQVZNTOWYHXUSPAIBRCJ"
-        self.r2 = "AJDKSIRUXBLHWTMCQGZNPYFVOE"
-        self.r3 = "BDFHJLCPRTXVZNYEIWGAKMUSQO"
+    def __init__(self, positions):
+        self.rotors = [
+            "EKMFLGDQVZNTOWYHXUSPAIBRCJ",  # I
+            "AJDKSIRUXBLHWTMCQGZNPYFVOE",  # II
+            "BDFHJLCPRTXVZNYEIWGAKMUSQO",  # III
+            "ESOVPZJAYQUIRHXLNFTGKDCMWB",  # IV
+            "VZBRGITYUPSDNHLXAWMJQOFECK",  # V
+            "JPGVOUMFYQBENHTSZRKADLXCW",   # VI
+            "NZJHGRCXMYSWBOUFAIVLPEKQDT",  # VII
+            "FKQHTLXOCBJSPDZRAMEWNIUYGV"   # VIII
+        ]
         self.reflector = "YRUHQSLDPXNGOKMIEBFZCWVJAT"
-        self.pos = [p1, p2, p3]
+        self.pos = positions.copy()
         self.alphabet = string.ascii_uppercase
-        
+
     def step_rotors(self):
-        self.pos[0] = (self.pos[0] + 1) % 26
-        if self.pos[0] == 0:
-            self.pos[1] = (self.pos[1] + 1) % 26
-            if self.pos[1] == 0:
-                self.pos[2] = (self.pos[2] + 1) % 26
-    
+        carry = True
+        for i in range(len(self.pos)):
+            if carry:
+                self.pos[i] = (self.pos[i] + 1) % 26
+                carry = (self.pos[i] == 0)
+            else:
+                break
+
     def process_text(self, text):
         result = ""
         text = "".join([c for c in text.upper() if c in self.alphabet])
-        
         for char in text:
             self.step_rotors()
             idx = self.alphabet.index(char)
-            idx = self.alphabet.index(self.r1[(idx + self.pos[0]) % 26])
-            idx = self.alphabet.index(self.r2[(idx + self.pos[1]) % 26])
-            idx = self.alphabet.index(self.r3[(idx + self.pos[2]) % 26])
+            for i in range(len(self.rotors)):
+                idx = self.alphabet.index(self.rotors[i][(idx + self.pos[i]) % 26])
             idx = self.alphabet.index(self.reflector[idx])
-            idx = (self.r3.index(self.alphabet[idx]) - self.pos[2]) % 26
-            idx = (self.r2.index(self.alphabet[idx]) - self.pos[1]) % 26
-            idx = (self.r1.index(self.alphabet[idx]) - self.pos[0]) % 26
+            for i in range(len(self.rotors)-1, -1, -1):
+                idx = (self.rotors[i].index(self.alphabet[idx]) - self.pos[i]) % 26
             result += self.alphabet[idx]
         return result
 
-def enigma_cipher(text, p1, p2, p3):
-    enigma = EnigmaMachine(p1, p2, p3)
+def enigma_cipher(text, positions):
+    enigma = EnigmaMachine(positions)
     return enigma.process_text(text)
 
 st.set_page_config(page_title="Kalkulator Kriptografi", layout="centered")
@@ -225,24 +226,34 @@ cipher_choice = st.sidebar.selectbox(
 
 st.header(cipher_choice)
 
+uploaded_file = st.file_uploader("Upload file teks", type=None)
 text_input = st.text_area("Masukkan Plaintext / Ciphertext:", height=150)
+
+input_text = text_input
+if uploaded_file is not None:
+    try:
+        input_text = uploaded_file.read().decode("utf-8")
+        st.info("File berhasil dibaca. Teks di atas telah diperbarui.")
+    except UnicodeDecodeError:
+        st.error("File bukan teks UTF-8. Gunakan input manual.")
+
 mode = st.radio("Pilih Mode:", ("Enkripsi", "Dekripsi"))
 
 if cipher_choice == "Vigenere Cipher":
     key_input = st.text_input("Masukkan Kunci (Huruf):", value="KUNCI")
     if st.button("Proses"):
-        if text_input and key_input:
+        if input_text and key_input:
             if mode == "Enkripsi":
-                output = vigenere_cipher(text_input, key_input, 'encrypt')
+                output = vigenere_cipher(input_text, key_input, 'encrypt')
             else:
-                output = vigenere_cipher(text_input, key_input, 'decrypt')
+                output = vigenere_cipher(input_text, key_input, 'decrypt')
             st.success("Hasil:")
             st.code(output)
-            
+            st.download_button("Download hasil", data=output, file_name="hasil.txt", mime="text/plain")
             st.session_state.history.append({
                 'cipher': "Vigenere Cipher",
                 'mode': mode,
-                'input': text_input,
+                'input': input_text,
                 'output': output
             })
         else:
@@ -260,47 +271,48 @@ elif cipher_choice == "Affine Cipher":
         st.error("Nilai 'a' harus koprima dengan 26 (misal: 1, 3, 5, 7, 9, 11, 15, 17, 19, 21, 23, 25).")
     else:
         if st.button("Proses"):
-            if text_input:
+            if input_text:
                 if mode == "Enkripsi":
-                    output = affine_cipher(text_input, a_input, b_input, 'encrypt')
+                    output = affine_cipher(input_text, a_input, b_input, 'encrypt')
                 else:
-                    output = affine_cipher(text_input, a_input, b_input, 'decrypt')
+                    output = affine_cipher(input_text, a_input, b_input, 'decrypt')
                 st.success("Hasil:")
                 st.code(output)
-                
+                st.download_button("Download hasil", data=output, file_name="hasil.txt", mime="text/plain")
                 st.session_state.history.append({
                 'cipher': "Affine Cipher",
                 'mode': mode,
-                'input': text_input,
+                'input': input_text,
                 'output': output
             })
 
-elif cipher_choice in ["Playfair Cipher"]:
-    st.markdown("💡 **Info Playfair:** Huruf **J** dilebur menjadi **I**. Teks akan diproses berpasangan (digraph). Huruf kembar akan dipisahkan dengan huruf **X**.")
+elif cipher_choice == "Playfair Cipher":
+    st.markdown("**Info:** Huruf **J** dilebur menjadi **I**. Teks akan diproses berpasangan (digraph). Huruf kembar akan dipisahkan dengan huruf **X**.")
     key_input = st.text_input("Masukkan Kunci (Huruf):", value="KUNCI")
     
     if st.button("Proses"):
-        if text_input and key_input:
+        if input_text and key_input:
             if mode == "Enkripsi":
-                output = playfair_cipher(text_input, key_input, 'encrypt')
+                output = playfair_cipher(input_text, key_input, 'encrypt')
             else:
-                output = playfair_cipher(text_input, key_input, 'decrypt')
+                output = playfair_cipher(input_text, key_input, 'decrypt')
             st.write("Matriks Kunci 5x5:")
             matrix = generate_playfair_matrix(key_input)
             matrix_display = "\n".join([" ".join(row) for row in matrix])
             st.text(matrix_display)
             st.success("Hasil:")
             st.code(output)
+            st.download_button("Download hasil", data=output, file_name="hasil.txt", mime="text/plain")
             st.session_state.history.append({
                 'cipher': "Playfair Cipher",
                 'mode': mode,
-                'input': text_input,
+                'input': input_text,
                 'output': output
             })
         else:
             st.warning("Teks dan Kunci tidak boleh kosong!")
 
-elif cipher_choice in ["Hill Cipher"]:
+elif cipher_choice == "Hill Cipher":
     st.markdown("💡 **Info Hill Cipher:** Kunci berupa matriks 2x2. Pastikan determinan matriks koprima dengan 26 untuk dekripsi.")
     st.write("Masukkan elemen matriks kunci (2x2):")
     col1, col2 = st.columns(2)
@@ -314,43 +326,45 @@ elif cipher_choice in ["Hill Cipher"]:
     key_matrix = np.array([[k00, k01], [k10, k11]])
     
     if st.button("Proses"):
-        if text_input:
+        if input_text:
             if mode == "Enkripsi":
-                output = hill_cipher(text_input, key_matrix, 'encrypt')
+                output = hill_cipher(input_text, key_matrix, 'encrypt')
             else:
-                output = hill_cipher(text_input, key_matrix, 'decrypt')
+                output = hill_cipher(input_text, key_matrix, 'decrypt')
             
             if "Kunci tidak valid" in output:
                 st.error(output)
             else:
                 st.success("Hasil:")
                 st.code(output)
+                st.download_button("Download hasil", data=output, file_name="hasil.txt", mime="text/plain")
                 st.session_state.history.append({
                 'cipher': "Hill Cipher",
                 'mode': mode,
-                'input': text_input,
+                'input': input_text,
                 'output': output
             })
     
-elif cipher_choice in ["Enigma Cipher"]:
-    st.markdown("💡 **Info Enigma Cipher:** Masukkan posisi awal rotor (0-25) untuk masing-masing rotor (R1, R2, R3).")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        r1 = st.number_input("Posisi awal Rotor R1:", min_value=0, max_value=25, value=0)
-    with col2:
-        r2 = st.number_input("Posisi awal Rotor R2:", min_value=0, max_value=25, value=0)
-    with col3:
-        r3 = st.number_input("Posisi awal Rotor R3:", min_value=0, max_value=25, value=0)
+elif cipher_choice == "Enigma Cipher":
+    st.markdown("**Info:** Masukkan posisi awal rotor (huruf A-Z) untuk 8 rotor.")
+    cols = st.columns(8)
+    rotor_letters = []
+    for i, col in enumerate(cols):
+        with col:
+            letter = st.selectbox(f"R{i+1}", options=list(string.ascii_uppercase), index=0, key=f"enigma_r{i}")
+            rotor_letters.append(letter)
+    positions = [ord(l) - 65 for l in rotor_letters]
     
     if st.button("Proses"):
-        if text_input:
-            output = enigma_cipher(text_input, r1, r2, r3)
+        if input_text:
+            output = enigma_cipher(input_text, positions)
             st.success("Hasil:")
             st.code(output)
+            st.download_button("Download hasil", data=output, file_name="hasil.txt", mime="text/plain")
             st.session_state.history.append({
                 'cipher': "Enigma Cipher",
                 'mode': mode,
-                'input': text_input,
+                'input': input_text,
                 'output': output
             })
             
