@@ -167,9 +167,9 @@ def hill_cipher(text, key_matrix, mode='encrypt'):
             result += chr(int(val) + 65)
     return result
 
-# enigma cipher with 8 rotors
+# enigma cipher
 class EnigmaMachine:
-    def __init__(self, positions):
+    def __init__(self, rotor_indices, positions):
         self.rotors = [
             "EKMFLGDQVZNTOWYHXUSPAIBRCJ",  # I
             "AJDKSIRUXBLHWTMCQGZNPYFVOE",  # II
@@ -181,6 +181,7 @@ class EnigmaMachine:
             "FKQHTLXOCBJSPDZRAMEWNIUYGV"   # VIII
         ]
         self.reflector = "YRUHQSLDPXNGOKMIEBFZCWVJAT"
+        self.selected_rotors = [self.rotors[i] for i in rotor_indices]
         self.pos = positions.copy()
         self.alphabet = string.ascii_uppercase
 
@@ -199,16 +200,16 @@ class EnigmaMachine:
         for char in text:
             self.step_rotors()
             idx = self.alphabet.index(char)
-            for i in range(len(self.rotors)):
-                idx = self.alphabet.index(self.rotors[i][(idx + self.pos[i]) % 26])
+            for i in range(len(self.selected_rotors)):
+                idx = self.alphabet.index(self.selected_rotors[i][(idx + self.pos[i]) % 26])
             idx = self.alphabet.index(self.reflector[idx])
-            for i in range(len(self.rotors)-1, -1, -1):
-                idx = (self.rotors[i].index(self.alphabet[idx]) - self.pos[i]) % 26
+            for i in range(len(self.selected_rotors)-1, -1, -1):
+                idx = (self.selected_rotors[i].index(self.alphabet[idx]) - self.pos[i]) % 26
             result += self.alphabet[idx]
         return result
 
-def enigma_cipher(text, positions):
-    enigma = EnigmaMachine(positions)
+def enigma_cipher(text, rotor_indices, positions):
+    enigma = EnigmaMachine(rotor_indices, positions)
     return enigma.process_text(text)
 
 st.set_page_config(page_title="Kalkulator Kriptografi", layout="centered")
@@ -226,7 +227,7 @@ cipher_choice = st.sidebar.selectbox(
 
 st.header(cipher_choice)
 
-uploaded_file = st.file_uploader("Upload file teks", type=None)
+uploaded_file = st.file_uploader("Upload file(.txt)", type=None)
 text_input = st.text_area("Masukkan Plaintext / Ciphertext:", height=150)
 
 input_text = text_input
@@ -287,7 +288,7 @@ elif cipher_choice == "Affine Cipher":
             })
 
 elif cipher_choice == "Playfair Cipher":
-    st.markdown("**Info:** Huruf **J** dilebur menjadi **I**. Teks akan diproses berpasangan (digraph). Huruf kembar akan dipisahkan dengan huruf **X**.")
+    st.markdown("💡 **Info:** Huruf **J** dilebur menjadi **I**. Teks akan diproses berpasangan (digraph). Huruf kembar akan dipisahkan dengan huruf **X**.")
     key_input = st.text_input("Masukkan Kunci (Huruf):", value="KUNCI")
     
     if st.button("Proses"):
@@ -313,7 +314,7 @@ elif cipher_choice == "Playfair Cipher":
             st.warning("Teks dan Kunci tidak boleh kosong!")
 
 elif cipher_choice == "Hill Cipher":
-    st.markdown("💡 **Info Hill Cipher:** Kunci berupa matriks 2x2. Pastikan determinan matriks koprima dengan 26 untuk dekripsi.")
+    st.markdown("💡 **Info:** Kunci berupa matriks 2x2. Pastikan determinan matriks koprima dengan 26 untuk dekripsi.")
     st.write("Masukkan elemen matriks kunci (2x2):")
     col1, col2 = st.columns(2)
     with col1:
@@ -346,18 +347,27 @@ elif cipher_choice == "Hill Cipher":
             })
     
 elif cipher_choice == "Enigma Cipher":
-    st.markdown("**Info:** Masukkan posisi awal rotor (huruf A-Z) untuk 8 rotor.")
-    cols = st.columns(8)
-    rotor_letters = []
-    for i, col in enumerate(cols):
-        with col:
-            letter = st.selectbox(f"R{i+1}", options=list(string.ascii_uppercase), index=0, key=f"enigma_r{i}")
-            rotor_letters.append(letter)
-    positions = [ord(l) - 65 for l in rotor_letters]
+    st.markdown("💡 **Info:** Pilih jenis rotor (I-VIII) dan posisi awal (A-Z) untuk 3 rotor.")
+    rotor_names = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"]
+    rotor_indices = []
+    positions = []
+    cols = st.columns(2)
+    for i in range(3):
+        with cols[0]:
+            rotor_idx = st.selectbox(f"Rotor {i+1}", options=range(8), format_func=lambda x: rotor_names[x], key=f"rotor_{i}")
+        with cols[1]:
+            pos_char = st.text_input(f"Posisi {i+1} (A-Z)", value="A", max_chars=1, key=f"pos_{i}").upper()
+            if pos_char and pos_char not in string.ascii_uppercase:
+                st.error("Masukkan huruf A-Z")
+                pos_val = 0
+            else:
+                pos_val = ord(pos_char) - 65 if pos_char else 0
+        rotor_indices.append(rotor_idx)
+        positions.append(pos_val)
     
     if st.button("Proses"):
         if input_text:
-            output = enigma_cipher(input_text, positions)
+            output = enigma_cipher(input_text, rotor_indices, positions)
             st.success("Hasil:")
             st.code(output)
             st.download_button("Download hasil", data=output, file_name="hasil.txt", mime="text/plain")
